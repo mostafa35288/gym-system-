@@ -1,0 +1,1738 @@
+{
+  "name": "Gym Management & Registration Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 12
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "GYM system  (Responses)",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1133120306,
+          "mode": "list",
+          "cachedResultName": "Form Responses 1",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "event": "rowAdded",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        240
+      ],
+      "id": "308a5ca5-98d4-466d-b1a8-1e2ac75ca32f",
+      "name": "Google Sheets Trigger"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f7c9b7dc-3b23-4c9a-9b5b-47b5afdf7f17",
+              "name": "full_name",
+              "value": "={{ $json.Name }}",
+              "type": "string"
+            },
+            {
+              "id": "2e7fd24b-9470-4fb6-915f-9e90d45c6a86",
+              "name": "=phone",
+              "value": "={{ $json[\"Phone \"] }}",
+              "type": "string"
+            },
+            {
+              "id": "00ceab8d-bb1c-4cc4-8718-4c3689672ea9",
+              "name": "date_of_birth",
+              "value": "={{ $json[\" Date of Birth \"] }}",
+              "type": "string"
+            },
+            {
+              "id": "aa881062-04d7-45d3-b2cd-64b89502eeaa",
+              "name": "email",
+              "value": "={{ $json.Email }}",
+              "type": "string"
+            },
+            {
+              "id": "fb5ff78c-594c-4513-9903-7c81e8064ba3",
+              "name": "gender ",
+              "value": "={{ $json[\"Gender \"] }}",
+              "type": "string"
+            },
+            {
+              "id": "b3102d54-6e0a-4adb-a80d-5186877a77a8",
+              "name": "membership_type",
+              "value": "={{ $json[\"Membership Type\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "84f864c2-d33d-4e57-91be-f7f08d3a1435",
+              "name": "start_date",
+              "value": "={{ $json[\"Type Start Date \"] }}",
+              "type": "string"
+            },
+            {
+              "id": "264c601b-b184-4b3f-a5ef-5a91ba4738d4",
+              "name": "payment_method",
+              "value": "={{ $json[\"Payment Method \"] }}",
+              "type": "string"
+            },
+            {
+              "id": "7518fe82-2c59-4413-b990-bc3f03ea946d",
+              "name": "trainer",
+              "value": "={{ $json[\"Trainer (Optinal)\"] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": "=",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        224,
+        240
+      ],
+      "id": "7ecd5378-333b-4001-84f0-0e3f793a38d8",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all incoming items\nconst items = $input.all();\n\nconst validMemberships = [\n  \"1 Month\",\n  \"3 Months\",\n  \"6 Months\",\n  \"1 Year\"\n];\n\nconst validPaymentMethods = [\n  \"Insta Pay\",\n  \"Vodafone Cash\",\n];\n\n// Convert date like 8/1/2005 to a real Date\nfunction parseDate(dateString) {\n  if (!dateString) return null;\n\n  const parts = String(dateString).trim().split(/[\\/\\-]/);\n\n  if (parts.length !== 3) return null;\n\n  const month = Number(parts[0]);\n  const day = Number(parts[1]);\n  const year = Number(parts[2]);\n\n  if (\n    !Number.isInteger(day) ||\n    !Number.isInteger(month) ||\n    !Number.isInteger(year)\n  ) {\n    return null;\n  }\n\n  const date = new Date(year, month - 1, day);\n\n  // Make sure JS didn't auto-correct an invalid date\n  if (\n    date.getFullYear() !== year ||\n    date.getMonth() !== month - 1 ||\n    date.getDate() !== day\n  ) {\n    return null;\n  }\n\n  return date;\n}\n\nreturn items.map(item => {\n\n  const data = item.json;\n\n  // -------------------------\n  // Clean basic text fields\n  // -------------------------\n\n  const fullName = String(data.full_name || \"\")\n    .trim()\n    .replace(/\\s+/g, \" \");\n\n  const phone = String(data.phone || \"\")\n    .trim()\n    .replace(/\\s+/g, \"\")\n    .replace(/-/g, \"\");\n\n  const email = String(data.email || \"\")\n    .trim()\n    .toLowerCase();\n\n  const gender = String(data.gender || \"\")\n    .trim();\n\n  const membershipType = String(data.membership_type || \"\")\n    .trim();\n\n  const paymentMethodRaw = String(data.payment_method || \"\")\n    .trim();\n\n  const trainer = String(data.trainer || \"\")\n    .trim();\n\n  // -------------------------\n  // Validate Name\n  // -------------------------\n\n  const nameWords = fullName.split(\" \").filter(Boolean);\n\n  const nameValid =\n    fullName.length >= 3 &&\n    nameWords.length >= 2 &&\n    /^[A-Za-z\\u0600-\\u06FF\\s]+$/.test(fullName);\n\n  // -------------------------\n  // Validate Egyptian Phone\n  // -------------------------\n\n  const phoneValid = /^01[0125]\\d{8}$/.test(phone);\n\n  // -------------------------\n  // Validate Email\n  // -------------------------\n\n  const emailValid =\n    /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email);\n\n  // -------------------------\n  // Validate Birth Date\n  // -------------------------\n\n  const birthDate = parseDate(data.date_of_birth);\n\n  const today = new Date();\n\n  const birthDateValid =\n    birthDate !== null &&\n    birthDate <= today &&\n    birthDate.getFullYear() >= 1900;\n\n  // -------------------------\n  // Validate Start Date\n  // -------------------------\n\n  const startDate = parseDate(data.start_date);\n\n  const startDateValid =\n    startDate !== null;\n\n  // -------------------------\n  // Validate Membership\n  // -------------------------\n\n  const membershipValid =\n    validMemberships.includes(membershipType);\n\n  // -------------------------\n  // Validate Payment Method\n  // -------------------------\n\n  let paymentMethod = paymentMethodRaw;\n\n  // Handle values like:\n  // \"Insta Pay :PHONE_NUMBER\"\n  if (paymentMethodRaw.includes(\":\")) {\n    paymentMethod = paymentMethodRaw\n      .split(\":\")[0]\n      .trim();\n  }\n\n  const paymentMethodValid =\n    validPaymentMethods.some(method =>\n      paymentMethod.toLowerCase() === method.toLowerCase()\n    );\n\n  // -------------------------\n  // Trainer is OPTIONAL\n  // -------------------------\n\n  const trainerValue =\n    trainer === \"\" ? \"No Trainer\" : trainer;\n\n  // -------------------------\n  // Overall Validation\n  // -------------------------\n\n  const basicValidation =\n    nameValid &&\n    phoneValid &&\n    emailValid &&\n    birthDateValid &&\n    startDateValid &&\n    membershipValid &&\n    paymentMethodValid;\n\n  // -------------------------\n  // Validation Errors\n  // -------------------------\n\n  const errors = [];\n\n  if (!nameValid) {\n    errors.push(\"Invalid or suspicious name\");\n  }\n\n  if (!phoneValid) {\n    errors.push(\"Invalid Egyptian mobile number\");\n  }\n\n  if (!emailValid) {\n    errors.push(\"Invalid email address\");\n  }\n\n  if (!birthDateValid) {\n    errors.push(\"Invalid date of birth\");\n  }\n\n  if (!startDateValid) {\n    errors.push(\"Invalid membership start date\");\n  }\n\n  if (!membershipValid) {\n    errors.push(\"Invalid membership type\");\n  }\n\n  if (!paymentMethodValid) {\n    errors.push(\"Invalid payment method\");\n  }\n\n  // -------------------------\n  // Return organized data\n  // -------------------------\n\n  return {\n    json: {\n      ...data,\n\n      // Cleaned data\n      full_name: fullName,\n      phone: phone,\n      email: email,\n      gender: gender,\n      membership_type: membershipType,\n      start_date: data.start_date,\n      payment_method: paymentMethod,\n      trainer: trainerValue,\n\n      // Validation results\n      name_valid: nameValid,\n      phone_valid: phoneValid,\n      email_valid: emailValid,\n      birth_date_valid: birthDateValid,\n      start_date_valid: startDateValid,\n      membership_valid: membershipValid,\n      payment_method_valid: paymentMethodValid,\n\n      // Final result\n      basic_validation: basicValidation,\n\n      // Error details\n      validation_errors: errors,\n\n      validation_message:\n        basicValidation\n          ? \"Basic validation passed\"\n          : errors.join(\" | \")\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        240
+      ],
+      "id": "af7b1384-c300-402e-b947-5198775225a8",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "3d924725-d52c-4d98-a768-ef527a74c79e",
+              "leftValue": "={{$json.basic_validation}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        672,
+        240
+      ],
+      "id": "1acfcca6-0607-4068-b451-a6743ab719c2",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Validate the following gym member registration:\n\nFull Name: {{$json.full_name}}\nPhone: {{$json.phone}}\nEmail: {{$json.email}}\nDate of Birth: {{$json.date_of_birth}}\nGender: {{$json.gender}}\nMembership Type: {{$json.membership_type}}\nStart Date: {{$json.start_date}}\nPayment Method: {{$json.payment_method}}\nTrainer: {{$json.trainer}}\n\nDetermine whether the registration is valid.\n\nReturn the result with:\n- valid\n- name_valid\n- phone_valid\n- email_valid\n- date_of_birth_valid\n- membership_valid\n- start_date_valid\n- payment_method_valid\n- reason\n\nIf any field is invalid, clearly explain why.",
+        "options": {
+          "systemMessage": "You are a Gym Registration Validation Assistant.\n\nYour job is to validate member registration data submitted through a gym registration form.\n\nYou must check whether the information is reasonable, consistent, and believable.\n\nValidation rules:\n\n1. Full Name\n- Must look like a real person's name.\n- Arabic and English names are allowed.\n- Reject obvious nonsense, random characters, keyboard patterns, or meaningless repeated text.\n- Do not reject a name simply because it is uncommon.\n\n2. Phone Number\n- Must be a valid-looking Egyptian mobile number.\n- Valid Egyptian mobile prefixes are 010, 011, 012, and 015.\n- The number must contain exactly 11 digits.\n\n3. Email\n- Must have a reasonable email format.\n\n4. Date of Birth\n- Must be a real date.\n- Must not be in the future.\n- Must represent a reasonable human age.\n\n5. Membership Type\n- Must be one of:\n  - 1 Month\n  - 3 Months\n  - 6 Months\n  - Annual\n\n6. Start Date\n- Must be a valid date.\n- It may be today or a future date.\n\n7. Payment Method\n- Must be a recognized payment method provided by the gym.\n\n8. Trainer\n- Trainer is optional.\n- An empty trainer value is valid.\n- Do not reject the registration because no trainer was selected.\n\nImportant:\n- Do not modify the submitted data.\n- Do not invent missing information.\n- Do not make assumptions when there is insufficient evidence.\n- Return only the validation result.\n- Be consistent and strict with clearly invalid data."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        896,
+        0
+      ],
+      "id": "f6ca1abd-48fa-467e-809f-28eb9eba8035",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        968,
+        216
+      ],
+      "id": "9e1d3fe4-8181-4149-b6d1-f8199bc10672",
+      "name": "Google Gemini Chat Model"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cbe41f2b-f0ea-4c48-bab2-dc74585b617b",
+              "leftValue": "={{$json.ai_valid}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1472,
+        96
+      ],
+      "id": "1dd36067-5bdc-46e7-b296-8fa4bbbcbf06",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1dca06e1-4eb3-430d-9dac-7d704fb2d494",
+              "name": "price",
+              "value": 4500,
+              "type": "number"
+            },
+            {
+              "id": "ccc4ad7f-7efb-4357-814a-f2630ecf10eb",
+              "name": "duration_months",
+              "value": 12,
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        2144,
+        480
+      ],
+      "id": "1ac00e27-2dae-4200-a57c-4fb36dcbfc3f",
+      "name": "Edit Fields5"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d75efae9-2cb6-43fe-9f5c-344e0a1f05a6",
+              "name": "Member ID",
+              "value": "=GYM-{{$now.format('yyyyMMddHHmmss')}}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1696,
+        192
+      ],
+      "id": "e12d2745-a91f-4595-a862-7249dbd1994d",
+      "name": "Generate member Id"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1dca06e1-4eb3-430d-9dac-7d704fb2d494",
+              "name": "price",
+              "value": 2400,
+              "type": "number"
+            },
+            {
+              "id": "ccc4ad7f-7efb-4357-814a-f2630ecf10eb",
+              "name": "duration_months",
+              "value": 6,
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        2144,
+        288
+      ],
+      "id": "54c6b04e-75b6-4909-8164-9a63be06acb6",
+      "name": "Edit Fields4"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1dca06e1-4eb3-430d-9dac-7d704fb2d494",
+              "name": "price",
+              "value": 1300,
+              "type": "number"
+            },
+            {
+              "id": "ccc4ad7f-7efb-4357-814a-f2630ecf10eb",
+              "name": "duration_months",
+              "value": 3,
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        2144,
+        96
+      ],
+      "id": "653ca523-4555-48f0-8d94-631f105bbbc8",
+      "name": "Edit Fields3"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1dca06e1-4eb3-430d-9dac-7d704fb2d494",
+              "name": "price",
+              "value": 500,
+              "type": "number"
+            },
+            {
+              "id": "ccc4ad7f-7efb-4357-814a-f2630ecf10eb",
+              "name": "duration_months",
+              "value": 1,
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        2144,
+        -96
+      ],
+      "id": "2eacb87e-b2c5-48af-9d18-a4a748ad43e8",
+      "name": "Edit Fields2"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Edit Fields').item.json.membership_type }}",
+                    "rightValue": "1 Month",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "36c8621e-24f5-4b25-8e2c-8c2284d4aa50"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "1fcc49cb-5121-42e1-989d-4b6bf150eba6",
+                    "leftValue": "={{ $('Edit Fields').item.json.membership_type }}",
+                    "rightValue": "3 Months",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "b4db35b3-c37d-4c5c-8c4d-8cb2dfa6d874",
+                    "leftValue": "={{ $('Edit Fields').item.json.membership_type }}",
+                    "rightValue": "6 Months",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "9875e64d-8f5f-4987-bf3d-68da3f6af8e3",
+                    "leftValue": "={{ $('Edit Fields').item.json.membership_type }}",
+                    "rightValue": "1 Year",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1920,
+        160
+      ],
+      "id": "bdf1bc1e-7177-4fc9-b7cc-7d9f152ee498",
+      "name": "Switch"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2368,
+        192
+      ],
+      "id": "c410f79d-fb5f-4ad5-a504-60e5ff16cdcf",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n\n  const startDateString = String(data.start_date || \"\").trim();\n  const durationMonths = Number(data.duration_months);\n\n  const parts = startDateString.split(/[\\/\\-]/);\n\n  if (parts.length !== 3) {\n    throw new Error(`Invalid start date: ${startDateString}`);\n  }\n\n  const month = Number(parts[0]);\n  const day = Number(parts[1]);\n  const year = Number(parts[2]);\n\n  const startDate = new Date(year, month - 1, day);\n\n  if (\n    startDate.getFullYear() !== year ||\n    startDate.getMonth() !== month - 1 ||\n    startDate.getDate() !== day\n  ) {\n    throw new Error(`Invalid start date: ${startDateString}`);\n  }\n\n  // Calculate target year and month\n  const targetMonthIndex =\n    (year * 12 + (month - 1)) + durationMonths;\n\n  const endYear = Math.floor(targetMonthIndex / 12);\n  const endMonth = targetMonthIndex % 12;\n\n  // Get last day of target month\n  const lastDayOfMonth =\n    new Date(endYear, endMonth + 1, 0).getDate();\n\n  // Keep the same day when possible,\n  // otherwise use the last day of the month\n  const endDay = Math.min(day, lastDayOfMonth);\n\n  const endDate =\n    new Date(endYear, endMonth, endDay);\n\n  const formattedEndDate =\n    `${String(endDate.getMonth() + 1).padStart(2, \"0\")}/` +\n    `${String(endDate.getDate()).padStart(2, \"0\")}/` +\n    `${endDate.getFullYear()}`;\n\n  return {\n    json: {\n      ...data,\n      end_date: formattedEndDate\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2592,
+        192
+      ],
+      "id": "be03f440-085e-4ec8-b144-f0cd8d0e9371",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "GYM system  (Responses)",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 2106593827,
+          "mode": "list",
+          "cachedResultName": "Members",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Member_ID ": "={{ $json[\"Member ID\"] }}",
+            "Full_Name": "={{ $json.full_name }}",
+            "Phone ": "={{ $json.phone }}",
+            "Email ": "={{ $json.email }}",
+            "Gender ": "={{ $json.gender }}",
+            "Date_of_Birth ": "={{ $json.date_of_birth }}",
+            "Membership_Type ": "={{ $json.membership_type }}",
+            "Start_Date ": "={{ $json.start_date }}",
+            "End_Date ": "={{ $json.end_date }}",
+            "Price ": "={{ $json.price }}",
+            "Payment_Method ": "={{ $json.ai_payment_method_valid }}",
+            "Trainer": "={{ $json.trainer }}",
+            " Created_At": "={{$now}}",
+            " Status": "Active"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Member_ID ",
+              "displayName": "Member_ID ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Full_Name",
+              "displayName": "Full_Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone ",
+              "displayName": "Phone ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email ",
+              "displayName": "Email ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Date_of_Birth ",
+              "displayName": "Date_of_Birth ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Gender ",
+              "displayName": "Gender ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Membership_Type ",
+              "displayName": "Membership_Type ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Start_Date ",
+              "displayName": "Start_Date ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "End_Date ",
+              "displayName": "End_Date ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Price ",
+              "displayName": "Price ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Payment_Method ",
+              "displayName": "Payment_Method ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Trainer",
+              "displayName": "Trainer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " Status",
+              "displayName": " Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " Created_At",
+              "displayName": " Created_At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2816,
+        192
+      ],
+      "id": "e49f17fd-7a02-4d53-af97-73932aec8f0d",
+      "name": "Append row in sheet"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "GYM system  (Responses)",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1624664478,
+          "mode": "list",
+          "cachedResultName": "Membership",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Membership_ID": "=MEM-{{$now.format('yyyyMMddHHmmss')}}",
+            "Member_ID": "={{ $json[\"Member_ID \"] }}",
+            "Membership_Type": "={{ $json[\"Membership_Type \"] }}",
+            "Start_Date": "={{ $json[\"Start_Date \"] }}",
+            "End_Date": "={{ $json[\"End_Date \"] }}",
+            "Price": "={{ $json[\"Price \"] }}",
+            "Status": "={{ $json[\" Status\"] }}",
+            "Created_At": "={{ $json[\" Created_At\"] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Membership_ID",
+              "displayName": "Membership_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Member_ID",
+              "displayName": "Member_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Membership_Type",
+              "displayName": "Membership_Type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Start_Date",
+              "displayName": "Start_Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "End_Date",
+              "displayName": "End_Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Price",
+              "displayName": "Price",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Created_At",
+              "displayName": "Created_At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3040,
+        192
+      ],
+      "id": "57def259-c0a7-4487-83e6-a008177b94cc",
+      "name": "Append row in sheet1"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "GYM system  (Responses)",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1699859951,
+          "mode": "list",
+          "cachedResultName": "Payment",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Payment_ID": "=PAY-{{$now.format('yyyyMMddHHmmss')}}",
+            "Amount": "={{ $('Append row in sheet').item.json[\"Price \"] }}",
+            "Member_ID": "={{ $('Code in JavaScript2').item.json[\"Member ID\"] }}",
+            "Membership_ID": "={{ $json.Membership_ID }}",
+            "Created_At": "={{$now}}",
+            "Payment_Method": "={{ $('Code in JavaScript2').item.json.payment_method }}",
+            "Payment_Date": "={{$now}}",
+            "Status": "Paid"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Payment_ID",
+              "displayName": "Payment_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Member_ID",
+              "displayName": "Member_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Membership_ID",
+              "displayName": "Membership_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Amount",
+              "displayName": "Amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Payment_Method",
+              "displayName": "Payment_Method",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Payment_Date",
+              "displayName": "Payment_Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Created_At",
+              "displayName": "Created_At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3264,
+        192
+      ],
+      "id": "b40f221b-58ae-4e70-ad99-bddcc0a14654",
+      "name": "Append row in sheet2"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        3488,
+        192
+      ],
+      "id": "77293447-940b-4eab-93d8-7d1baaadac4c",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "GYM system  (Responses)",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 971100217,
+          "mode": "list",
+          "cachedResultName": "Registration_Log",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Registration_ID",
+              "displayName": "Registration_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Member_ID",
+              "displayName": "Member_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation_Status",
+              "displayName": "Validation_Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation_Reason",
+              "displayName": "Validation_Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Created_At",
+              "displayName": "Created_At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1696,
+        0
+      ],
+      "id": "15ee29a1-4226-4da8-ac68-0fc9ce087f87",
+      "name": "Append row in sheet3"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const output = item.json.output || \"\";\n\n  const getValue = (key) => {\n    const regex = new RegExp(\n      `${key}:\\\\s*(.*?)(?=\\\\n|$)`,\n      \"i\"\n    );\n\n    const match = output.match(regex);\n    return match ? match[1].trim() : \"\";\n  };\n\n  const toBoolean = (value) =>\n    String(value).toLowerCase() === \"true\";\n\n  // Get original data from the node before AI Agent\n  const original = $('Code in JavaScript').item.json;\n\n  // Find a field ignoring spaces and capitalization\n  const getOriginalField = (fieldName) => {\n    const key = Object.keys(original).find(\n      key =>\n        key.trim().toLowerCase() ===\n        fieldName.trim().toLowerCase()\n    );\n\n    return key ? original[key] : \"\";\n  };\n\n  return {\n    json: {\n\n      // =========================\n      // ORIGINAL MEMBER DATA\n      // =========================\n\n      full_name: getOriginalField(\"full_name\"),\n      phone: getOriginalField(\"phone\"),\n      date_of_birth: getOriginalField(\"date_of_birth\"),\n      email: getOriginalField(\"email\"),\n      gender: getOriginalField(\"gender\"),\n      membership_type: getOriginalField(\"membership_type\"),\n      start_date: getOriginalField(\"start_date\"),\n      payment_method: getOriginalField(\"payment_method\"),\n      trainer: getOriginalField(\"trainer\"),\n\n      // =========================\n      // AI RAW OUTPUT\n      // =========================\n\n      ai_output: output,\n\n      // =========================\n      // AI VALIDATION\n      // =========================\n\n      ai_valid: toBoolean(\n        getValue(\"valid\")\n      ),\n\n      ai_name_valid: toBoolean(\n        getValue(\"name_valid\")\n      ),\n\n      ai_phone_valid: toBoolean(\n        getValue(\"phone_valid\")\n      ),\n\n      ai_email_valid: toBoolean(\n        getValue(\"email_valid\")\n      ),\n\n      ai_date_of_birth_valid: toBoolean(\n        getValue(\"date_of_birth_valid\")\n      ),\n\n      ai_membership_valid: toBoolean(\n        getValue(\"membership_valid\")\n      ),\n\n      ai_start_date_valid: toBoolean(\n        getValue(\"start_date_valid\")\n      ),\n\n      ai_payment_method_valid: toBoolean(\n        getValue(\"payment_method_valid\")\n      ),\n\n      ai_reason: getValue(\"reason\")\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        96
+      ],
+      "id": "77c94e36-387e-45c1-9be6-c6bfd308ecc6",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=❌ Gym Registration Failed  Hello {{$json.full_name}} 👋  Unfortunately, we couldn't complete your registration because some of the submitted information could not be verified.  📋 Reason: {{ $json.validation_message }} Please check your information and submit the form again.  Thank you.",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        960,
+        400
+      ],
+      "id": "a4109679-44af-4147-8670-f8f7c08734d5",
+      "name": "Send a text message1",
+      "webhookId": "e4d0ddca-8382-4193-9dd6-3438a9e75d39"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Append row in sheet').item.json[\"Email \"] }}",
+        "subject": "=🏋️ Gym Registration Confirmed",
+        "emailType": "text",
+        "message": "=🏋️ Welcome to our Gym!  Hello {{ $('Append row in sheet').item.json.Full_Name }},  Your gym registration has been completed successfully. ✅  Your Membership Details:  🆔 Member ID: {{ $('Append row in sheet').item.json[\"Member_ID \"] }}  📋 Membership:   📅 Start Date: {{ $('Append row in sheet1').item.json.Start_Date }}  📅 End Date: {{ $('Append row in sheet1').item.json.End_Date }}  💰 Amount Paid:{{ $('Append row in sheet1').item.json.Price }} EGP  💳 Payment Method: {{ $('Code in JavaScript').item.json.payment_method }} 👨‍🏫 Trainer: {{ $('Append row in sheet').item.json.Trainer }}  ━━━━━━━━━━━━━━━━━━  📱 ACTIVATE YOUR ATTENDANCE  To use the Gym Attendance System, open our Telegram bot:  👉 https://t.me/YOUR_TELEGRAM_BOT?start={{ $('Append row in sheet').item.json[\"Member_ID \"] }}\nThen press /start and follow the instructions.  This will connect your Telegram account to your gym membership.  See you at the gym! 💪",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        3712,
+        192
+      ],
+      "id": "ce4c8765-2a69-4bec-b40f-06772e3e759f",
+      "name": "Send a message",
+      "webhookId": "2fa104ff-6e9f-45f0-b8a6-f99b1f600913"
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        704
+      ],
+      "id": "ae412e44-2995-47ef-95ef-6ec46c0def8c",
+      "name": "Telegram Trigger",
+      "webhookId": "0d86121b-b31d-4182-9080-f3df0535bf2a"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const text = String(item.json.message?.text || '').trim();\n  const chatId = item.json.message?.chat?.id;\n\n  const match = text.match(/^\\/start\\s+(GYM-\\d+)$/i);\n\n  if (!match) {\n    throw new Error(`Invalid start command: ${text}`);\n  }\n\n  return {\n    json: {\n      chat_id: chatId,\n      member_id: match[1]\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        704
+      ],
+      "id": "d41c07a5-a1be-469c-bfa8-96af06268d43",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "GYM system  (Responses)",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 2106593827,
+          "mode": "list",
+          "cachedResultName": "Members",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Member_ID ",
+              "lookupValue": "={{ $json.member_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        448,
+        704
+      ],
+      "id": "dcecd003-f942-42bf-9e42-75c1961b1e45",
+      "name": "Get row(s) in sheet"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "90eb27e0-58a5-437a-95ef-593297cb576f",
+              "name": "Telegram_Chat_ID",
+              "value": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        672,
+        704
+      ],
+      "id": "e3fa484b-7108-4149-9e98-37fe6de5dacd",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "GYM system  (Responses)",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 2106593827,
+          "mode": "list",
+          "cachedResultName": "Members",
+          "cachedResultUrl": "YOUR_GOOGLE_SHEET_URL"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Telegram_chat_id": "={{ $json.Telegram_Chat_ID }}",
+            "Member_ID ": "={{ $json['Member_ID '] }}"
+          },
+          "matchingColumns": [
+            "Member_ID "
+          ],
+          "schema": [
+            {
+              "id": "Member_ID ",
+              "displayName": "Member_ID ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Full_Name",
+              "displayName": "Full_Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone ",
+              "displayName": "Phone ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email ",
+              "displayName": "Email ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Date_of_Birth ",
+              "displayName": "Date_of_Birth ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Gender ",
+              "displayName": "Gender ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Membership_Type ",
+              "displayName": "Membership_Type ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Start_Date ",
+              "displayName": "Start_Date ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "End_Date ",
+              "displayName": "End_Date ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Price ",
+              "displayName": "Price ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Payment_Method ",
+              "displayName": "Payment_Method ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Trainer",
+              "displayName": "Trainer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " Status",
+              "displayName": " Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " Created_At",
+              "displayName": " Created_At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Telegram_chat_id",
+              "displayName": "Telegram_chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        896,
+        704
+      ],
+      "id": "7ac2aac8-2d5c-47a8-9591-4a9adebc4bd6",
+      "name": "Update row in sheet"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.Telegram_chat_id }}",
+        "text": "=🎉 Account Connected Successfully!  Welcome to our Gym, {{ $('Get row(s) in sheet').item.json.Full_Name }}! 💪  Your Telegram account is now linked to your gym membership.  🆔 Member ID: {{ $('Get row(s) in sheet').item.json['Member_ID '] }}  📋 Membership: {{ $('Get row(s) in sheet').item.json['Membership_Type '] }}  📅 Start Date: {{ $('Get row(s) in sheet').item.json['Start_Date '] }}  📅 End Date: {{ $('Get row(s) in sheet').item.json['End_Date '] }}  ━━━━━━━━━━━━━━━━━━  🏋️ Attendance System  You can now use this bot to manage your gym attendance.  More features coming soon! 🚀",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        704
+      ],
+      "id": "c921bc70-4658-463a-9699-bda3f124e19c",
+      "name": "Send a text message",
+      "webhookId": "2c825a44-a2d7-415a-8faf-ba9ff960e0bd"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b12aa1ce-84e2-4709-8f27-e3c855607e15",
+              "leftValue": "={{ $('Telegram Trigger').item.json.message.text }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1344,
+        704
+      ],
+      "id": "2b8915c4-80f9-4e49-8fe5-b60325b168b9",
+      "name": "If2"
+    }
+  ],
+  "connections": {
+    "Google Sheets Trigger": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a text message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Generate member Id",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append row in sheet3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields5": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate member Id": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields2": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields3": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields4": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet1": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet2": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet3": {
+      "main": [
+        []
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message": {
+      "main": [
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
